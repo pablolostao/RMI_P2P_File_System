@@ -14,10 +14,12 @@ import java.util.stream.Collectors;
 
 public class Main {
     public static void main(String args[]) {
-        if (args.length!=2 || (!args[0].equals("config1.json") && !args[0].equals("config2.json") && !args[0].equals("config3.json"))){
-            System.out.println("ERROR. You can only call this program with two argument. The first one must be 'config1.json' or 'config2.json' or 'config3.json'.");
+        //Check config file
+        if (args.length!=2 || (!args[0].equals("config1.json") && !args[0].equals("config2.json"))){
+            System.out.println("ERROR. You can only call this program with two argument. The first one must be 'config1.json' or 'config2.json'.");
             System.exit(0);
         }
+        //Read object from json
         String jsonString = readFile(args[0]);
         JSONParser parser = new JSONParser();
         JSONObject obj;
@@ -29,6 +31,7 @@ public class Main {
                 System.exit(0);
             }
             String type = (String) obj.get("type");
+            //If it is a peer, initialize a peer with its superpeer
             if(type.equals("peer")) {
                 try {
                     String id = args[1];
@@ -43,6 +46,7 @@ public class Main {
                     System.err.println("Peer exception:");
                     e.printStackTrace();
                 }
+                //If it is a peer, initialize a superpeer with its neighbors
             }else if(type.equals("superpeer")){
                 try {
                     String id = args[1];
@@ -70,6 +74,8 @@ public class Main {
             e.printStackTrace();
         }
     }
+
+    //Auxiliar method to read config.json
     private static String readFile(String file){
         try{
             ClassLoader classloader = Thread.currentThread().getContextClassLoader();

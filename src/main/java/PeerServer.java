@@ -1,22 +1,18 @@
 import java.io.*;
-import java.net.Socket;
 import java.nio.file.*;
 import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
-import java.rmi.server.UnicastRemoteObject;
 import java.util.HashSet;
-import java.util.concurrent.ConcurrentHashMap;
 
-import static java.nio.file.StandardWatchEventKinds.*;
 
 public class PeerServer implements IPeer{
+    //Path to shared directory
     private Path shared_directory;
 
     public PeerServer() throws RemoteException {
         super();
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
         Boolean retry = true;
+        //Init shared directory
         while(retry){
             try{
                 System.out.println("Insert the path of the shared directory:");
@@ -34,20 +30,25 @@ public class PeerServer implements IPeer{
         }
     }
 
+    //Get shared directory
     public Path getShared_directory() {
         return shared_directory;
     }
 
+    //Retrieve a file
     public synchronized byte[] retrieve(String fileName) throws RemoteException{
         File internalFile = this.shared_directory.resolve(fileName).toFile();
         byte[] mybytearray  = new byte [(int)internalFile.length()];
         return mybytearray;
     }
 
-//    public synchronized boolean queryhit(String messageID, String fileName, HashSet<String> set,String superPeer) throws RemoteException{
-//        System.out.println(fileName+" can be found in the following peers: ");
-//        System.out.println(set);
-//        return true;
-//    }
+    //Receives a queryhit and prints de result
+    public synchronized void queryhit(String messageID, String fileName, HashSet<String> set,String superPeer) throws RemoteException{
+        if(set.size()==0){
+            return;
+        }
+        System.out.println("QUERYHIT - RECEIVED. Original sender: "+superPeer+" for "+fileName+". Set of peers:");
+        System.out.println(set);
+    }
 
 }

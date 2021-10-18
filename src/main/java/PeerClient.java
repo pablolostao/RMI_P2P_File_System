@@ -2,30 +2,34 @@ import java.io.*;
 import java.nio.file.Path;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 
 public class PeerClient extends Thread{
+    //Peer id
     private String id;
-    private String indexer;
+    //Corresponding superpeer id
+    private String superpeer;
+    //Path to shared directory
     private Path shared_directory;
+    //Counter of sent messages to create messageID
     private Integer nextMessageID;
 
-    public PeerClient(String id, String indexer, Path shared_directory){
-        this.indexer =indexer;
+    public PeerClient(String id, String superpeer, Path shared_directory){
+        this.superpeer =superpeer;
         this.id =id;
         this.shared_directory=shared_directory;
         this.nextMessageID=0;
     }
 
+    //Thread to manage user inputs
     public void run() {
         try{
-            String[] addPort = this.indexer.split(":");
+            //Locate corresponding superpeer
+            String[] addPort = this.superpeer.split(":");
             Registry registry = LocateRegistry.getRegistry(Integer.parseInt(addPort[1]));
-            ISuperpeer iSuperpeer = (ISuperpeer) registry.lookup(this.indexer);
+            ISuperpeer iSuperpeer = (ISuperpeer) registry.lookup(this.superpeer);
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             Boolean retry = true;
+            //Register all files in shared directory
             File[] files = this.shared_directory.toFile().listFiles();
             if(files !=null){
                 for (File child : files) {
@@ -39,6 +43,7 @@ public class PeerClient extends Thread{
             }
             //Create another thread to watch directory events
             new Watcher(this.id, iSuperpeer,this.shared_directory).start();
+            //Get user inputs and execute actions
             int choice = 0;
             while(true){
                 retry = true;
@@ -60,34 +65,25 @@ public class PeerClient extends Thread{
                     case 1:
                         System.out.println("\nEnter the name of the file you are looking for:");
                         String name = reader.readLine().trim();
-                        HashMap<String,HashSet<String>> map = iSuperpeer.query(this.id+"-"+nextMessageID.toString(),4,name,this.id,new HashSet<String>());
-                        System.out.println(name+" can be found in the following peers: ");
-                        for(Map.Entry<String, HashSet<String>> entry : map.entrySet()) {
-                            if(entry.getValue()==null){
-                                continue;
-                            }
-                            System.out.println("    In superpeer "+entry.getKey()+":");
-                            System.out.println("    "+entry.getValue());
-                        }
-                        this.nextMessageID++;
-//                        if(set.size()==0){
-//                            System.out.println("File is not in the server");
-//                        }else{
-//                            System.out.println("You can download "+name+" from the following peers: "+set.toString());
-//                        }
+                        iSuperpeer.query(this.superpeer+"-"+this.id+"-"+nextMessageID.toString(),4,name,this.id);
+                        this.nextMessageID=this.nextMessageID+1;
                         break;
-                    //We request to another peer a file
+                    //We request a file directly to another peer
                     case 2:
+                        //Peer, corresponding superpeer and name file needed
                         System.out.println("\nEnter the name of the file you are looking for:");
                         String fileName = reader.readLine().trim();
                         System.out.println("\nEnter the peer you want to download from (address:port):");
                         String peerName = reader.readLine().trim();
                         System.out.println("\nEnter corresponding superpeer:");
                         String superpeer = reader.readLine().trim();
+                        //Locate peer
                         Registry assRegistry = LocateRegistry.getRegistry(Integer.parseInt(superpeer.split(":")[1]));
                         Path newFilePath = shared_directory.resolve(fileName);
                         IPeer iPeer = (IPeer) assRegistry.lookup(peerName);
+                        //Retreive
                         byte[] bytes = iPeer.retrieve(fileName);
+                        //Save file
                         OutputStream fileOutputStream = new FileOutputStream(newFilePath.toFile());
                         BufferedOutputStream  bufferedOutputStream= new BufferedOutputStream(fileOutputStream);
                         bufferedOutputStream.write(bytes, 0 ,bytes.length );
@@ -95,7 +91,7 @@ public class PeerClient extends Thread{
                         fileOutputStream.close();
                         bufferedOutputStream.close();
                         break;
-                    //Exit
+                    //Exit (previous deregistration of all files)
                     case 3:
                         files = this.shared_directory.toFile().listFiles();
                         if(files !=null){
