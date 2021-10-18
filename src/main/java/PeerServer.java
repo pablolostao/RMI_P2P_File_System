@@ -38,10 +38,16 @@ public class PeerServer implements IPeer{
         return shared_directory;
     }
 
-    public byte[] retrieve(String fileName) throws RemoteException{
+    public synchronized byte[] retrieve(String fileName) throws RemoteException{
         File internalFile = this.shared_directory.resolve(fileName).toFile();
         byte[] mybytearray  = new byte [(int)internalFile.length()];
         return mybytearray;
     }
+
+//    public synchronized boolean queryhit(String messageID, String fileName, HashSet<String> set,String superPeer) throws RemoteException{
+//        System.out.println(fileName+" can be found in the following peers: ");
+//        System.out.println(set);
+//        return true;
+//    }
 
 }

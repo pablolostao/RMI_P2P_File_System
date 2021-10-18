@@ -4,14 +4,14 @@ import java.nio.file.*;
 import static java.nio.file.StandardWatchEventKinds.*;
 
 public class Watcher extends Thread{
-    IIndexer iIndexer = null;
+    ISuperpeer iSuperpeer = null;
     String id = null;
     Path shared_directory = null;
     WatchService watcher = null;
 
-    public Watcher(String id,IIndexer iIndexer,Path shared_directory){
+    public Watcher(String id, ISuperpeer iSuperpeer, Path shared_directory){
         this.id = id;
-        this.iIndexer=iIndexer;
+        this.iSuperpeer = iSuperpeer;
         this.shared_directory=shared_directory;
     }
 
@@ -34,7 +34,7 @@ public class Watcher extends Thread{
                     WatchEvent<Path> ev = (WatchEvent<Path>)event;
                     Path filepath = ev.context();
                     File file = new File(filepath.toString());
-                    boolean success = iIndexer.registry(this.id, file.getName());
+                    boolean success = iSuperpeer.registry(this.id, file.getName());
                     if(success){
                         System.out.println("File "+file.getName()+" registered successfully for peer "+this.id);
                     }else{
@@ -46,7 +46,7 @@ public class Watcher extends Thread{
                     WatchEvent<Path> ev = (WatchEvent<Path>)event;
                     Path filepath = ev.context();
                     File file = new File(filepath.toString());
-                    boolean success = iIndexer.deregister(this.id, file.getName());
+                    boolean success = iSuperpeer.deregister(this.id, file.getName());
                     if(success){
                         System.out.println("File "+file.getName()+" deregistered successfully for peer "+this.id);
                     }else{

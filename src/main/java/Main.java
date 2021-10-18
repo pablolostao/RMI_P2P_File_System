@@ -1,3 +1,4 @@
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -45,8 +46,13 @@ public class Main {
             }else if(type.equals("superpeer")){
                 try {
                     String id = args[1];
-                    IIndexer iIndexer = new Superpeer();
-                    IIndexer stub = (IIndexer) UnicastRemoteObject.exportObject(iIndexer, Integer.parseInt(id.split(":")[1]));
+                    JSONArray jsonArray = (JSONArray)obj.get("neighbors");
+                    String[] neighbors = new String[jsonArray.size()];
+                    for (int i = 0; i < jsonArray.size(); i++) {
+                        neighbors[i] = (String) jsonArray.get(i);
+                    }
+                    ISuperpeer iSuperpeer = new Superpeer(id,neighbors);
+                    ISuperpeer stub = (ISuperpeer) UnicastRemoteObject.exportObject(iSuperpeer, Integer.parseInt(id.split(":")[1]));
                     Registry registry = LocateRegistry.createRegistry(Integer.parseInt(id.split(":")[1]));
                     registry.rebind(id,stub);
                     System.out.println("Superpeer listening at "+id);
@@ -79,4 +85,5 @@ public class Main {
             return "";
         }
     }
+
 }

@@ -1,34 +1,32 @@
-import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.rmi.server.UnicastRemoteObject;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class Superpeer implements IIndexer{
+public class Superpeer implements ISuperpeer {
     //For each file it has a set of peers
     private ConcurrentHashMap<String, HashSet<String>> fileToClientIds = null;
+    private HashMap<String,ISuperpeer> neighborToRemoteObject = null;
+    private HashMap<String,IPeer> peerToRemoteObject = null;
+    //private HashMap<String,String> messageIdToSender = null;
+    //private HashMap<String,Integer> messageIdToResponsesLeft = null;
+    private String id="";
     //Indexer constructor
-    public Superpeer() throws RemoteException {
+    public Superpeer(String id, String[] neighbors) throws RemoteException {
         super();
+        this.id=id;
         this.fileToClientIds = new ConcurrentHashMap<String,HashSet<String>>();
+        neighborToRemoteObject = new HashMap<String,ISuperpeer>();
+        //this.messageIdToSender = new HashMap<String,String>();
+        //this.messageIdToResponsesLeft = new HashMap<String,Integer>();
+        this.peerToRemoteObject = new HashMap<String,IPeer>();
+        for (String neighbor:neighbors) {
+            neighborToRemoteObject.put(neighbor,null);
+        }
     }
-
-//    public static void main(String[] args) {
-//        try {
-//            String name = "127.0.0.1:30301";
-//            String[] addPort = name.split(":");
-//            IIndexer iIndexer = new Indexer();
-//            IIndexer stub = (IIndexer) UnicastRemoteObject.exportObject(iIndexer, Integer.parseInt(addPort[1]));
-//            Registry registry = LocateRegistry.createRegistry(Integer.parseInt(addPort[1]));
-//            registry.rebind(name,stub);
-//            System.out.println("Indexer bound");
-//        } catch (Exception e) {
-//            System.err.println("Indexer exception:");
-//            e.printStackTrace();
-//        }
-//    }
 
 
     //This method registers a specific file for a specific peer
@@ -47,7 +45,7 @@ public class Superpeer implements IIndexer{
             fileToClientIds.get(fileName).add(peerId);
             //Respond
             System.out.println("File "+fileName+" registered successfully for peer "+peerId);
-            System.out.println(this.fileToClientIds);
+            //System.out.println(this.fileToClientIds);
             return true;
         }catch(Exception e){
             System.out.println("ERROR. File "+fileName+" could not be registered for peer "+peerId);
@@ -101,5 +99,117 @@ public class Superpeer implements IIndexer{
             return null;
         }
     }
+
+    //This method returns the set of peer with the specific file (sucess) or fail if the file is not in the server
+    public synchronized HashMap<String,HashSet<String>> query(String messageID, Integer TTL, String fileName, String senderId,HashSet<String> visited) throws RemoteException {
+        try{
+            visited.add(this.id);
+            System.out.println("Query called for message "+messageID+" and file "+fileName);
+            HashMap<String,HashSet<String>> map = new HashMap<String,HashSet<String>>();
+            HashSet<String> peersSet = this.fileToClientIds.get(fileName);
+            map.put(this.id,peersSet);
+            if(peersSet==null){
+                peersSet=new HashSet<String>();
+            }
+            if(TTL==0){
+                System.out.println("Broadcast stopped because TTL is equals to 0");
+            }else{
+                for(Map.Entry<String, ISuperpeer> entry : neighborToRemoteObject.entrySet()) {
+                    String key = entry.getKey();
+                    if(key.equals(senderId) || map.containsKey(key) || visited.contains(key)){
+                        continue;
+                    }
+                    ISuperpeer value = entry.getValue();
+                    if(value==null){
+                        try{
+                            String[] addPort = key.split(":");
+                            Registry registry = LocateRegistry.getRegistry(Integer.parseInt(addPort[1]));
+                            ISuperpeer neighbor = (ISuperpeer) registry.lookup(key);
+                            this.neighborToRemoteObject.put(key,neighbor);
+                        }catch (Exception e){
+                            System.out.println(key+" could not be located, ignoring it.");
+                            continue;
+                        }
+                    }
+                    map.putAll(this.neighborToRemoteObject.get(key).query(messageID,TTL-1,fileName,this.id,visited));
+                    //peersSet.addAll();
+                    //this.messageIdToResponsesLeft.put(messageID,this.messageIdToResponsesLeft.get(messageID)+1);
+                    System.out.println(messageID+" sent to "+key);
+                }
+            }
+            return  map;
+//            if(isSenderPeer){
+//                IPeer peer = null;
+//                if(peerToRemoteObject.containsKey(senderId)){
+//                    peer=peerToRemoteObject.get(senderId);
+//                }else{
+//                    String[] addPort = this.id.split(":");
+//                    Registry registry = LocateRegistry.getRegistry(Integer.parseInt(addPort[1]));
+//                    peer = (IPeer) registry.lookup(senderId);
+//                    this.peerToRemoteObject.put(senderId,peer);
+//                }
+//                this.messageIdToSender.put(messageID,senderId);
+//                this.messageIdToResponsesLeft.put(messageID,0);
+//                if (peersSet==null){
+//                    peer.queryhit(messageID,fileName,new HashSet<String>(),this.id);
+//                    System.out.println("File "+fileName+" was not in the superpeer. Empty query hit sent to "+senderId);
+//                }else{
+//                    peer.queryhit(messageID,fileName,peersSet,this.id);
+//                    System.out.println("Query hit sent to "+senderId);
+//                }
+//            }else{
+//                ISuperpeer superpeer=neighborToRemoteObject.get(senderId);
+//                if(superpeer!=null){
+//                    superpeer=neighborToRemoteObject.get(senderId);
+//                }else{
+//                    String[] addPort = senderId.split(":");
+//                    Registry registry = LocateRegistry.getRegistry(Integer.parseInt(addPort[1]));
+//                    superpeer = (ISuperpeer) registry.lookup(senderId);
+//                    this.neighborToRemoteObject.put(senderId,superpeer);
+//                }
+//                if(this.messageIdToSender.containsKey(messageID)){
+//                    System.out.println("Message "+messageID+" already received, ignoring it.");
+//                    superpeer.queryhit(messageID,fileName,null,this.id,true);
+//                    return true;
+//                }else{
+//                    this.messageIdToSender.put(messageID,senderId);
+//                    this.messageIdToResponsesLeft.put(messageID,0);
+//                }
+//                if (peersSet==null){
+//                   superpeer.queryhit(messageID,fileName,new HashSet<String>(),this.id,false);
+//                    System.out.println("File "+fileName+" was not in the superpeer. Empty query hit sent to "+senderId);
+//                }else{
+//                    superpeer.queryhit(messageID,fileName,peersSet,this.id,false);
+//                    System.out.println("Query hit sent to "+senderId);
+//                }
+//            }
+//            return null;
+        }catch (Exception e){
+            System.out.println("ERROR. Queryhit or broadcast failed.");
+            e.printStackTrace();
+            return  null;
+        }
+    }
+
+//    public synchronized boolean queryhit(String messageID, String fileName, HashSet<String> set,String superPeer,boolean ignored) throws RemoteException {
+//        System.out.println("Queryhit called for message "+messageID+" and file "+fileName);
+//        this.messageIdToResponsesLeft.put(messageID,this.messageIdToResponsesLeft.get(messageID)-1);
+//        String sentTo = "";
+//        if(this.messageIdToResponsesLeft.get(messageID)==0){
+//            this.messageIdToResponsesLeft.remove(messageID);
+//            sentTo = this.messageIdToSender.get(messageID);
+//            this.messageIdToSender.remove(messageID);
+//        }
+//        if(ignored){
+//            return true;
+//        }
+//        if(peerToRemoteObject.containsKey(sentTo)){
+//            peerToRemoteObject.get(sentTo).queryhit(messageID,fileName,set,superPeer);
+//        }else{
+//            neighborToRemoteObject.get(sentTo).queryhit(messageID,fileName,set,superPeer,false);
+//        }
+//        return true;
+//
+//    }
 
 }
