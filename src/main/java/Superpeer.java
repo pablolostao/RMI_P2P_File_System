@@ -182,7 +182,7 @@ public class Superpeer implements ISuperpeer {
                         }
                     }
                     //Create thread
-                    new Broadcast(neighbor,messageID,TTL-1,fileName,this.id,key).start();
+                    new QueryBroadcast(neighbor,messageID,TTL-1,fileName,this.id,key).start();
                     System.out.println("QUERY - SENT to "+key+" for "+fileName+" ("+messageID+") ");
                 }
             }
@@ -190,6 +190,57 @@ public class Superpeer implements ISuperpeer {
             System.out.println("ERROR. Queryhit or broadcast failed.");
             e.printStackTrace();
         }
+    }
+
+    //Receives an invalidation message and broadcasts it
+    public synchronized  void invalidation(String messageID, Integer TTL,String fileName, Integer newVersion,String senderId) throws RemoteException{
+        if(this.messageIdToSender.containsKey(messageID)){
+            System.out.println("Message "+messageID+" already received, ignoring it.");
+            return;
+        }
+        System.out.println("INVALIDATION - RECEIVED for "+fileName+". New version: "+newVersion.toString());
+        HashSet<String> peersSet = this.fileToClientIds.get(fileName);
+        if(peersSet!=null){
+            for(String peer:peersSet){
+                if(peer.equals(senderId)){
+                    continue;
+                }
+                IPeer peerObject = this.peerToRemoteObject.get(peer);
+                peerObject.invalidation(messageID,fileName,newVersion);
+            }
+        }
+        //Set message sender
+        this.messageIdToSender.put(messageID,senderId);
+        // If TTL is equals to zero, stop broadcast
+        if(TTL==0){
+            System.out.println("Broadcast stopped because TTL is equals to 0");
+        }else{
+            //For each neighbor, try to locate it and create a thread to broadcast the query
+            for(Map.Entry<String, ISuperpeer> entry : neighborToRemoteObject.entrySet()) {
+                String key = entry.getKey();
+                // Do not broadcast to the sender
+                if(key.equals(senderId)){
+                    continue;
+                }
+                ISuperpeer neighbor = entry.getValue();
+                if(neighbor==null){
+                    try{
+                        String[] addPort = key.split(":");
+                        Registry registry = LocateRegistry.getRegistry(Integer.parseInt(addPort[1]));
+                        neighbor = (ISuperpeer) registry.lookup(key);
+                        this.neighborToRemoteObject.put(key,neighbor);
+                        //Neighbor crashed
+                    }catch (Exception e){
+                        System.out.println(key+" could not be located, ignoring it.");
+                        continue;
+                    }
+                }
+                //Create thread
+                new InvalidationBroadcast(this.id,neighbor,messageID,TTL-1,fileName,newVersion).start();
+                System.out.println("INVALIDATION - SENT to "+key+" for "+fileName+" ("+messageID+") ");
+            }
+        }
+
     }
 
     //This method receives a queryhit and forwards it to corresponding peer/superpeer
@@ -212,8 +263,8 @@ public class Superpeer implements ISuperpeer {
         }
     }
 
-    //Thread used for broadcasting
-    private class Broadcast extends Thread{
+    //Thread used for broadcasting query messages
+    private class QueryBroadcast extends Thread{
         private String id;
         private String target;
         private String fileName;
@@ -222,7 +273,7 @@ public class Superpeer implements ISuperpeer {
         private ISuperpeer neighbor;
 
 
-        public Broadcast(ISuperpeer neighbor,String messageID, Integer TTL,String fileName,String id, String target){
+        public QueryBroadcast(ISuperpeer neighbor,String messageID, Integer TTL,String fileName,String id, String target){
             this.id=id;
             this.fileName=fileName;
             this.neighbor=neighbor;
@@ -233,6 +284,35 @@ public class Superpeer implements ISuperpeer {
         public void run(){
             try{
                 neighbor.query(messageID,TTL,fileName,id);
+            }catch (Exception e){
+                System.out.println("Error in broadcast");
+                e.printStackTrace();
+            }
+
+        }
+    }
+
+    //Thread used for broadcasting invalidation messages
+    private class InvalidationBroadcast extends Thread{
+        private String id;
+        private String fileName;
+        private Integer TTL;
+        private Integer newVersion;
+        private String messageID;
+        private ISuperpeer neighbor;
+
+
+        public InvalidationBroadcast(String id,ISuperpeer neighbor,String messageID, Integer TTL,String fileName,Integer newVersion){
+            this.id = id;
+            this.newVersion=newVersion;
+            this.fileName=fileName;
+            this.neighbor=neighbor;
+            this.TTL=TTL;
+            this.messageID=messageID;
+        }
+        public void run(){
+            try{
+                neighbor.invalidation(messageID,TTL,fileName,newVersion,this.id);
             }catch (Exception e){
                 System.out.println("Error in broadcast");
                 e.printStackTrace();

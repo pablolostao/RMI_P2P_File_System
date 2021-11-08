@@ -10,7 +10,7 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="RMI_P2P_FileSystem" target="17" />
+      <module name="RMI_P2P_FileSystem" target="1.8" />
     </bytecodeTargetLevel>
   </component>
 </project>

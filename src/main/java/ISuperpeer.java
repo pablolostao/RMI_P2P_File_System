@@ -15,4 +15,6 @@ public interface ISuperpeer extends Remote{
     void query(String messageID, Integer TTL, String fileName, String senderId) throws RemoteException;
     //Receives a queryhit and forwards it to corresponding peer/superpeer
     void queryhit(String messageID, String fileName, HashSet<String> set,String superPeer,String queryHitSender) throws RemoteException;
+    //Receives an invalidation message and broadcasts it
+    void invalidation(String messageID, Integer TTL,String fileName, Integer newVersion,String senderId) throws RemoteException;
 }

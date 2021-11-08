@@ -7,9 +7,11 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -25,6 +27,7 @@ public class Main {
         JSONObject obj;
         try {
             obj = (JSONObject)parser.parse(jsonString);
+            boolean isPull = (boolean) obj.get("isPull");
             obj = (JSONObject)obj.get(args[1]);
             if(obj==null){
                 System.out.println("ERROR. Second argument is not valid or error reading config file. Second argument must be one of the IDs described in the config file.");
@@ -35,13 +38,15 @@ public class Main {
             if(type.equals("peer")) {
                 try {
                     String id = args[1];
+                    ConcurrentHashMap<String,FileInfo> fileToInfo = new ConcurrentHashMap<String,FileInfo>();
                     String superpeer = (String) obj.get("superpeer");
-                    IPeer iPeer = new PeerServer();
+                    Integer TTR = ((Long) obj.get("TTR")).intValue();
+                    IPeer iPeer = new PeerServer(id,superpeer,fileToInfo,TTR,isPull);
                     IPeer stub = (IPeer) UnicastRemoteObject.exportObject(iPeer, Integer.parseInt(id.split(":")[1]));
                     Registry registry = LocateRegistry.getRegistry(Integer.parseInt(superpeer.split(":")[1]));
                     registry.rebind(id,stub);
                     System.out.println("Peer initialized at "+id);
-                    new PeerClient(id,superpeer,iPeer.getShared_directory()).start();
+                    new PeerClient(id,superpeer,iPeer.getOwned_directory(),iPeer.getDownloaded_directory(),fileToInfo,TTR,isPull).start();
                 } catch (Exception e) {
                     System.err.println("Peer exception:");
                     e.printStackTrace();
